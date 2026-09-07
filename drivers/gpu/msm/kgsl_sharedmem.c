@@ -22,6 +22,7 @@
 #include <soc/qcom/scm.h>
 #include <soc/qcom/secure_buffer.h>
 #include <linux/ratelimit.h>
+#include <linux/math64.h>
 
 #include "kgsl.h"
 #include "kgsl_sharedmem.h"
@@ -98,6 +99,69 @@ struct mem_entry_stats {
 }
 
 static void kgsl_cma_unlock_secure(struct kgsl_memdesc *memdesc);
+
+enum kgsl_memtrack_stat {
+	KGSL_MEMTRACK_MAPPED,
+	KGSL_MEMTRACK_UNMAPPED,
+	KGSL_MEMTRACK_IMPORTED,
+};
+
+static ssize_t memtrack_show(struct kgsl_process_private *priv,
+		int type, char *buf)
+{
+	struct kgsl_mem_entry *entry;
+	uint64_t total = 0;
+	int id = 0;
+
+	spin_lock(&priv->mem_lock);
+	for (entry = idr_get_next(&priv->mem_idr, &id); entry;
+		id++, entry = idr_get_next(&priv->mem_idr, &id)) {
+		struct kgsl_memdesc *m;
+		unsigned int usermem_type;
+
+		if (!kgsl_mem_entry_get(entry))
+			continue;
+		/* EGL attachment accounting takes a mutex; pin before unlocking. */
+		spin_unlock(&priv->mem_lock);
+		m = &entry->memdesc;
+		usermem_type = kgsl_memdesc_usermem_type(m);
+
+		if ((m->flags & KGSL_MEMFLAGS_SPARSE_VIRT) ||
+				kgsl_memdesc_is_secured(m))
+			goto next;
+
+		if (type == KGSL_MEMTRACK_IMPORTED) {
+			int surfaces = 0, images = 0;
+
+			if (usermem_type != KGSL_MEM_ENTRY_ION)
+				goto next;
+			kgsl_get_egl_counts(entry, &surfaces, &images);
+			/* Charge surfaces to their owner, otherwise share EGL images. */
+			if (kgsl_memdesc_get_memtype(m) == KGSL_MEMTYPE_EGL_SURFACE)
+				total += m->size;
+			else if (!surfaces)
+				total += div_u64(m->size, images ? images : 1);
+		} else if (usermem_type == KGSL_MEM_ENTRY_KERNEL) {
+			bool mapped = atomic_read(&entry->map_count) > 0;
+
+			/* This driver tracks mappings per allocation, not useraddr. */
+			if (mapped == (type == KGSL_MEMTRACK_MAPPED))
+				total += m->size;
+		}
+next:
+		kgsl_mem_entry_put(entry);
+		spin_lock(&priv->mem_lock);
+	}
+	spin_unlock(&priv->mem_lock);
+
+	return scnprintf(buf, PAGE_SIZE, "%llu\n", total);
+}
+
+static struct kgsl_mem_entry_attribute memtrack_attrs[] = {
+	__MEM_ENTRY_ATTR(KGSL_MEMTRACK_MAPPED, gpumem_mapped, memtrack_show),
+	__MEM_ENTRY_ATTR(KGSL_MEMTRACK_UNMAPPED, gpumem_unmapped, memtrack_show),
+	__MEM_ENTRY_ATTR(KGSL_MEMTRACK_IMPORTED, imported_mem, memtrack_show),
+};
 
 /**
  * Show the current amount of memory allocated for the given memtype
@@ -181,6 +245,9 @@ kgsl_process_uninit_sysfs(struct kgsl_process_private *private)
 			&mem_stats[i].max_attr.attr);
 	}
 
+	for (i = 0; i < ARRAY_SIZE(memtrack_attrs); i++)
+		sysfs_remove_file(&private->kobj, &memtrack_attrs[i].attr);
+
 	kobject_put(&private->kobj);
 }
 
@@ -222,6 +289,12 @@ void kgsl_process_init_sysfs(struct kgsl_device *device,
 			WARN(1, "Couldn't create sysfs file '%s'\n",
 				mem_stats[i].max_attr.attr.name);
 
+	}
+
+	for (i = 0; i < ARRAY_SIZE(memtrack_attrs); i++) {
+		if (sysfs_create_file(&private->kobj, &memtrack_attrs[i].attr))
+			WARN(1, "Couldn't create sysfs file '%s'\n",
+				memtrack_attrs[i].attr.name);
 	}
 }
 
