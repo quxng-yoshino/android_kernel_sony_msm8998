@@ -7,6 +7,8 @@
  */
 
 #include <linux/syscalls.h>
+#include <linux/bitmap.h>
+#include <linux/close_range.h>
 #include <linux/export.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -653,6 +655,49 @@ int __close_fd(struct files_struct *files, unsigned fd)
 out_unlock:
 	spin_unlock(&files->file_lock);
 	return -EBADF;
+}
+
+SYSCALL_DEFINE3(close_range, unsigned int, first, unsigned int, last,
+	       unsigned int, flags)
+{
+	struct files_struct *files;
+	struct fdtable *fdt;
+
+	if (flags & ~(CLOSE_RANGE_UNSHARE | CLOSE_RANGE_CLOEXEC))
+		return -EINVAL;
+	if (first > last)
+		return -EINVAL;
+
+	if (flags & CLOSE_RANGE_UNSHARE) {
+		struct files_struct *displaced;
+		int ret;
+
+		/* Keep the existing 4.4 full-table copy, without changing dup_fd. */
+		ret = unshare_files(&displaced);
+		if (ret)
+			return ret;
+		if (displaced)
+			put_files_struct(displaced);
+	}
+
+	files = current->files;
+	spin_lock(&files->file_lock);
+	fdt = files_fdtable(files);
+	last = min(last, fdt->max_fds - 1);
+	if (flags & CLOSE_RANGE_CLOEXEC) {
+		if (first <= last)
+			bitmap_set(fdt->close_on_exec, first, last - first + 1);
+		spin_unlock(&files->file_lock);
+		return 0;
+	}
+	spin_unlock(&files->file_lock);
+
+	while (first <= last) {
+		/* Like close_range upstream, ignore individual close errors. */
+		__close_fd(files, first++);
+		cond_resched();
+	}
+	return 0;
 }
 
 void do_close_on_exec(struct files_struct *files)
