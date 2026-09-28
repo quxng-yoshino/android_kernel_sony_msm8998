@@ -66,6 +66,12 @@ enum {
 enum {
 	CGRP_ROOT_NOPREFIX	= (1 << 1), /* mounted subsystems have no named prefix */
 	CGRP_ROOT_XATTR		= (1 << 2), /* supports extended attributes */
+
+	/*
+	 * Accept the "cpuset_v2_mode" mount option on v1 hierarchies.
+	 * Only the option is recognized for now; cpuset keeps v1 behavior.
+	 */
+	CGRP_ROOT_CPUSET_V2_MODE = (1 << 4),
 };
 
 /* cftype->flags */
