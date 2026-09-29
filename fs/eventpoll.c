@@ -2103,6 +2103,88 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 }
 #endif
 
+/*
+ * Backport of epoll_pwait2(2) (upstream Linux 5.11).
+ *
+ * Android 16's libgui (BLASTBufferQueue's BufferReleaseReader) waits for
+ * buffer releases with epoll_pwait2().  Without it every wait fails with
+ * ENOSYS and floods logcat.  4.4's ep_poll() only understands millisecond
+ * timeouts, so the timespec is converted and rounded up; a NULL timeout
+ * means "wait forever", exactly as upstream.
+ *
+ * Both ABIs take a struct __kernel_timespec (64-bit tv_sec and tv_nsec).
+ */
+struct epoll_kernel_timespec {
+	s64 tv_sec;
+	s64 tv_nsec;
+};
+
+static int ep_timespec_to_ms(const struct epoll_kernel_timespec __user *uts,
+			     int *timeout, bool compat)
+{
+	struct epoll_kernel_timespec ts;
+	u64 ms;
+
+	if (!uts) {
+		*timeout = -1;
+		return 0;
+	}
+
+	if (copy_from_user(&ts, uts, sizeof(ts)))
+		return -EFAULT;
+
+	/* 32-bit callers may leave garbage in the upper half of tv_nsec */
+	if (compat)
+		ts.tv_nsec &= 0xFFFFFFFFULL;
+
+	if (ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= NSEC_PER_SEC)
+		return -EINVAL;
+
+	if (ts.tv_sec >= INT_MAX / MSEC_PER_SEC) {
+		*timeout = INT_MAX;
+		return 0;
+	}
+
+	ms = (u64)ts.tv_sec * MSEC_PER_SEC +
+	     DIV_ROUND_UP((u64)ts.tv_nsec, NSEC_PER_MSEC);
+	*timeout = ms > INT_MAX ? INT_MAX : (int)ms;
+	return 0;
+}
+
+SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *, events,
+		int, maxevents,
+		const struct epoll_kernel_timespec __user *, timeout,
+		const sigset_t __user *, sigmask, size_t, sigsetsize)
+{
+	int ms, err;
+
+	err = ep_timespec_to_ms(timeout, &ms, false);
+	if (err)
+		return err;
+
+	return sys_epoll_pwait(epfd, events, maxevents, ms, sigmask,
+			       sigsetsize);
+}
+
+#ifdef CONFIG_COMPAT
+COMPAT_SYSCALL_DEFINE6(epoll_pwait2, int, epfd,
+		       struct epoll_event __user *, events,
+		       int, maxevents,
+		       const struct epoll_kernel_timespec __user *, timeout,
+		       const compat_sigset_t __user *, sigmask,
+		       compat_size_t, sigsetsize)
+{
+	int ms, err;
+
+	err = ep_timespec_to_ms(timeout, &ms, true);
+	if (err)
+		return err;
+
+	return compat_sys_epoll_pwait(epfd, events, maxevents, ms, sigmask,
+				      sigsetsize);
+}
+#endif
+
 static int __init eventpoll_init(void)
 {
 	struct sysinfo si;
