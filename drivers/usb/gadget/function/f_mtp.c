@@ -419,7 +419,12 @@ static struct usb_request *mtp_request_new(struct usb_ep *ep, int buffer_size)
 		return NULL;
 
 	/* now allocate buffers for the requests */
-	req->buf = kmalloc(buffer_size, GFP_KERNEL);
+	/*
+	 * The 1 MiB default needs an order-8 contiguous block. mtp_function_bind()
+	 * already falls back to 16 KiB when this fails, so do not dump a
+	 * page allocation failure splat into dmesg on every USB mode switch.
+	 */
+	req->buf = kmalloc(buffer_size, GFP_KERNEL | __GFP_NOWARN);
 	if (!req->buf) {
 		usb_ep_free_request(ep, req);
 		return NULL;
