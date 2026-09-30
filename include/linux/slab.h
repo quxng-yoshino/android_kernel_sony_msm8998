@@ -634,4 +634,46 @@ static inline void *kzalloc_node(size_t size, gfp_t flags, int node)
 unsigned int kmem_cache_size(struct kmem_cache *s);
 void __init kmem_cache_init_late(void);
 
+#ifdef KSU_VERSION
+/*
+ * Linux 4.4 compat shim for KernelSU-Next.
+ *
+ * manager/apk_sign.c is the one KernelSU source that calls kvmalloc() and
+ * never includes compat/kernel_compat.h -- the header that supplies it to
+ * the other twelve. On 4.4 that leaves it without a definition, and it
+ * cannot be fixed on the KernelSU side: the submodule is pinned to an
+ * upstream tag so the gitlink stays fetchable. So the function is supplied
+ * from here instead.
+ *
+ * It has to live in a header apk_sign.c already includes and that is known
+ * to be fully parsed by then. This one qualifies: apk_sign.c includes
+ * <linux/slab.h> directly, and the tail of a header is only reached once
+ * the rest of it has been processed, so kmalloc() is declared above.
+ *
+ * <linux/limits.h> looks like the obvious home -- apk_sign.c includes that
+ * too -- but it cannot work. This file pulls it in itself, through
+ * kasan.h -> sched.h -> cgroup-defs.h, so it is entered with _LINUX_SLAB_H
+ * already defined and kmalloc() not declared until much further down. A
+ * kvmalloc() defined there calls kmalloc() before any declaration exists,
+ * which Clang rejects as an implicit declaration and then rejects again
+ * when the real kmalloc() shows up below.
+ *
+ * KSU_VERSION is defined by drivers/kernelsu/Kbuild for every KernelSU
+ * object and for no other object in the tree, so the block is invisible to
+ * the rest of the kernel. The body mirrors ksu_kvmalloc() in
+ * KernelSU-Next/kernel/compat/kernel_compat.h.
+ */
+#include <linux/vmalloc.h>
+
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	void *buf = kmalloc(size, flags | __GFP_NOWARN);
+
+	if (!buf)
+		buf = vmalloc(size);
+
+	return buf;
+}
+#endif /* KSU_VERSION */
+
 #endif	/* _LINUX_SLAB_H */
