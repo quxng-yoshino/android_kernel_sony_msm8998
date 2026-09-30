@@ -53,6 +53,11 @@ Module.symvers
 /Module.markers
 
 #
+# build.sh writes its object tree to $ROOT/out unless OUT is set
+#
+/out/
+
+#
 # Debian directory (make deb-pkg)
 #
 /debian/

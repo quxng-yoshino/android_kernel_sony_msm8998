@@ -1,0 +1,8 @@
+Image
+Image.gz
+Image.gz-dtb
+Image.*-dtb
+zImage*
+*.img
+kernel_dtb
+*.zip
