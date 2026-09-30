@@ -1932,6 +1932,15 @@ out_path_put:
  *   the final mask". Again, that could be replaced with a
  *   efficient population count instruction or similar.
  */
+
+/*
+ * <linux/dcache.h> defines full_name_hash as a macro accepting either the
+ * 4.4 two-argument form or the post-5.2 three-argument form, so that
+ * KernelSU-Next builds. These are the definitions of the underlying
+ * two-argument function, so turn the macro off for the rest of this file.
+ */
+#undef full_name_hash
+
 #ifdef CONFIG_DCACHE_WORD_ACCESS
 
 #include <asm/word-at-a-time.h>

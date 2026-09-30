@@ -89,6 +89,28 @@ static inline unsigned long end_name_hash(unsigned long hash)
 extern unsigned int full_name_hash(const unsigned char *, unsigned int);
 
 /*
+ * Mainline since 5.2 and KernelSU-Next pass a leading struct user_namespace *
+ * to full_name_hash(); the namespace argument is unused when DCACHE_WORD_ACCESS
+ * is on and ignored otherwise. 4.4 only has the two-argument form, so accept
+ * both spellings here and drop the namespace. The two-argument expansion names
+ * full_name_hash itself, which the preprocessor deliberately does not
+ * re-expand, so it still resolves to the function above.
+ */
+struct user_namespace;
+
+static inline unsigned int full_name_hash_ns(struct user_namespace *ns,
+					     const char *name,
+					     unsigned int len)
+{
+	(void)ns;
+	return full_name_hash((const unsigned char *)name, len);
+}
+
+#define __ksu_hash_pick(_1, _2, _3, NAME, ...) NAME
+#define full_name_hash(...) \
+	__ksu_hash_pick(__VA_ARGS__, full_name_hash_ns, full_name_hash)(__VA_ARGS__)
+
+/*
  * Try to keep struct dentry aligned on 64 byte cachelines (this will
  * give reasonable cacheline footprint with larger lines without the
  * large memory footprint increase).

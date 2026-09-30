@@ -589,6 +589,16 @@ unsigned long read_word_at_a_time(const void *addr)
 #endif
 
 /*
+ * __nocfi marks a function that must not be instrumented by the CFI
+ * sanitizer. It is defined in <linux/compiler_types.h> from 4.19 onwards;
+ * KernelSU-Next uses it on the functions it installs as ->open/->write
+ * overrides. 4.4 has no CFI, so the attribute is a no-op.
+ */
+#ifndef __nocfi
+# define __nocfi
+#endif
+
+/*
  * This is needed in functions which generate the stack canary, see
  * arch/x86/kernel/smpboot.c::start_secondary() for an example.
  */
