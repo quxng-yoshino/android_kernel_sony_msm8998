@@ -58,6 +58,14 @@ Module.symvers
 /out/
 
 #
+# ...and its package, plus any boot.img pulled back out of it, land in $ROOT.
+# Both are per-build artifacts: they are large, rebuilt on every run, and
+# only meaningful for the device they were built for.
+#
+/Yoshino-KernelSU-Next-*.zip
+/boot.img
+
+#
 # Debian directory (make deb-pkg)
 #
 /debian/
