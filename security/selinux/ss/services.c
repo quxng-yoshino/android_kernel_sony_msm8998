@@ -855,6 +855,11 @@ out:
  * @oldsid : current security identifier
  * @newsid : destinated security identifier
  */
+#ifdef CONFIG_KSU
+extern bool is_ksu_transition(const struct task_security_struct *old_tsec,
+			      const struct task_security_struct *new_tsec);
+#endif
+
 int security_bounded_transition(u32 old_sid, u32 new_sid)
 {
 	struct context *old_context, *new_context;
@@ -864,6 +869,21 @@ int security_bounded_transition(u32 old_sid, u32 new_sid)
 
 	if (!ss_initialized)
 		return 0;
+
+#ifdef CONFIG_KSU
+	/*
+	 * KernelSU performs the init -> su domain transition itself; report
+	 * the destined SID as bounded so the transition is not denied. Only
+	 * ->sid is read, so the sid-only stand-ins are sufficient.
+	 */
+	{
+		struct task_security_struct old_tsec = { .sid = old_sid };
+		struct task_security_struct new_tsec = { .sid = new_sid };
+
+		if (is_ksu_transition(&old_tsec, &new_tsec))
+			return 0;
+	}
+#endif
 
 	read_lock(&policy_rwlock);
 
