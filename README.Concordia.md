@@ -1,8 +1,9 @@
-# KernelSU-Next on Sony MSM8998 (yoshino)
+# Concordia
 
-This branch (`lineage-23.2-ksu`) adds [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next)
-to the LineageOS 23.2 kernel for the Sony MSM8998 "yoshino" family
-(Xperia XZ1 `poplar`, XZ1 Compact `lilac`, XZ Premium `maple`).
+Concordia is a kernel for the Sony MSM8998 "yoshino" family (Xperia XZ1
+`poplar`, XZ1 Compact `lilac`, XZ Premium `maple`). It is the LineageOS 23.2
+kernel with [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next)
+added, and lives on the `lineage-23.2-ksu` branch.
 
 ## What is integrated
 
@@ -229,11 +230,17 @@ matching `CONFIG_MACH_SONY_*`, builds the DTBs and `Image.gz-dtb` with
 `LLVM=1`, and produces
 
 ```
-Yoshino-KernelSU-Next-<device>-<YYYYMMDD>.zip
+Concordia-KernelSU-Next-<device>-<YYYYMMDD>.zip
 ```
 
 next to the output directory (`OUT`, default `./out`). The zip carries an
 AnyKernel3 device check narrowed to the device it was built for.
+
+The kernel reports itself as `4.4.302-concordia`, which is what `uname -r` and
+the kernel version in Settings → About phone show. That is
+`CONFIG_LOCALVERSION` in `msmcortex-perf_defconfig`; `build.sh` also passes an
+empty `LOCALVERSION=` so `scripts/setlocalversion` does not append a `+` for an
+untagged tree.
 
 ### Why one image per device
 

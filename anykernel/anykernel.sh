@@ -1,11 +1,11 @@
 ### AnyKernel3 Ramdisk Mod Script
 ## osm0sis @ xda-developers
-## Customized for Sony MSM8998 "yoshino" (Xperia XZ1 / XZ1 Compact / XZ Premium)
+## Customized for Concordia on Sony MSM8998 "yoshino" (Xperia XZ1 / XZ1 Compact / XZ Premium)
 
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=Sony MSM8998 (yoshino) + KernelSU-Next
+kernel.string=Concordia for Sony MSM8998 (yoshino) + KernelSU-Next
 do.devicecheck=1
 do.modules=0
 do.systemless=0

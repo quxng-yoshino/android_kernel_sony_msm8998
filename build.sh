@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Build the Sony MSM8998 "yoshino" kernel and package it as an AnyKernel3 zip.
+# Build Concordia, the Sony MSM8998 "yoshino" kernel, and package it as an
+# AnyKernel3 zip.
 #
 #   ./build.sh                  # maple  (Xperia XZ Premium)
 #   DEVICE=lilac ./build.sh     # XZ1 Compact
@@ -67,10 +68,14 @@ FRAGMENTS=(
 	"$OUT/.dtb-names.config"
 )
 
+# LOCALVERSION= stops scripts/setlocalversion from tacking a "+" onto the
+# release whenever the tree is not sitting on a tag, so Settings shows exactly
+# CONFIG_LOCALVERSION: 4.4.302-concordia.
 MAKE_ARGS=(
 	ARCH=arm64
 	LLVM=1
 	CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+	LOCALVERSION=
 )
 
 echo "==> Configuring ($DEFCONFIG + yoshino/$DEVICE.config)"
@@ -123,13 +128,13 @@ cp -a "$AK3/." "$STAGE/"
 cp -f "$IMAGE" "$STAGE/Image.gz-dtb"
 
 sed -i \
-	-e "s|^kernel.string=.*|kernel.string=Sony MSM8998 yoshino ($DEVICE) + KernelSU-Next|" \
+	-e "s|^kernel.string=.*|kernel.string=Concordia for Sony MSM8998 yoshino ($DEVICE) + KernelSU-Next|" \
 	-e "s|^device.name1=.*|device.name1=$DEVICE|" \
 	-e "s|^device.name2=.*|device.name2=|" \
 	-e "s|^device.name3=.*|device.name3=|" \
 	"$STAGE/anykernel.sh"
 
-ZIP="$(dirname "$OUT")/Yoshino-KernelSU-Next-${DEVICE}-$(date +%Y%m%d).zip"
+ZIP="$(dirname "$OUT")/Concordia-KernelSU-Next-${DEVICE}-$(date +%Y%m%d).zip"
 rm -f "$ZIP"
 ( cd "$STAGE" && zip -r9 "$ZIP" . -x '*.git*' >/dev/null )
 

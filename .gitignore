@@ -62,7 +62,7 @@ Module.symvers
 # Both are per-build artifacts: they are large, rebuilt on every run, and
 # only meaningful for the device they were built for.
 #
-/Yoshino-KernelSU-Next-*.zip
+/Concordia-*.zip
 /boot.img
 
 #
