@@ -2659,6 +2659,25 @@ extern int do_pipe_flags(int *, int);
 extern int kernel_read(struct file *, loff_t, char *, unsigned long);
 extern ssize_t kernel_write(struct file *, const char *, size_t, loff_t);
 extern ssize_t __kernel_write(struct file *, const char *, size_t, loff_t *);
+
+/*
+ * KernelSU-Next calls kernel_read()/kernel_write() with the post-4.14
+ * prototypes, whose argument order is (file, buf, count, loff_t *pos). This
+ * tree's are older and differently shaped, and KernelSU builds with
+ * -Wno-int-conversion, so the mismatch compiles clean and only shows up at
+ * run time as reads from a garbage offset. Send its call sites to the
+ * adapters in fs/read_write.c.
+ *
+ * KSU_VERSION is passed to KernelSU's objects alone (see its Kbuild), so no
+ * other file in the tree sees these macros.
+ */
+#ifdef KSU_VERSION
+extern ssize_t ksu_kernel_read(struct file *, void *, size_t, loff_t *);
+extern ssize_t ksu_kernel_write(struct file *, const void *, size_t, loff_t *);
+#define kernel_read ksu_kernel_read
+#define kernel_write ksu_kernel_write
+#endif
+
 extern struct file * open_exec(const char *);
  
 /* fs/dcache.c -- generic fs support functions */

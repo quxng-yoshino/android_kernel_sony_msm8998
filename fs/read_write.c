@@ -557,6 +557,59 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 
 EXPORT_SYMBOL(vfs_write);
 
+/*
+ * KernelSU-Next is written against the post-4.14 prototypes of the two
+ * kernel-side file helpers, which put the buffer before the count and take
+ * a loff_t *pos at the end:
+ *
+ *	ssize_t kernel_read (struct file *file, void *buf, size_t count, loff_t *pos);
+ *	ssize_t kernel_write(struct file *file, const void *buf, size_t count, loff_t *pos);
+ *
+ * This tree still carries 4.4's -- (file, offset, buf, count), the offset
+ * by value for the write. The two shapes are far enough apart that
+ * KernelSU's calls compile without complaint (it builds with
+ * -Wno-int-conversion) and then read from whatever address happened to sit
+ * in the offset register: every APK signature check fails on a missing
+ * EOCD, packages.list parses to an empty list, and the allowlist is read
+ * and written at a garbage offset. include/linux/fs.h redirects those call
+ * sites -- and only those; KSU_VERSION is set for KernelSU's objects alone
+ * -- to the adapters below.
+ *
+ * The two prototype lines above must stay spelled exactly as they are.
+ * KernelSU's Kbuild greps this file for them to decide whether to define
+ * KSU_OPTIONAL_KERNEL_READ/WRITE, and with the redirection in place both
+ * defines are honest: KernelSU does get the post-4.14 API here.
+ */
+ssize_t ksu_kernel_read(struct file *file, void *buf, size_t count,
+			loff_t *pos)
+{
+	mm_segment_t old_fs;
+	ssize_t ret;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	/* The cast to a user pointer is valid due to the set_fs() */
+	ret = vfs_read(file, (void __user *)buf, count, pos);
+	set_fs(old_fs);
+
+	return ret;
+}
+
+ssize_t ksu_kernel_write(struct file *file, const void *buf, size_t count,
+			 loff_t *pos)
+{
+	mm_segment_t old_fs;
+	ssize_t ret;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	/* The cast to a user pointer is valid due to the set_fs() */
+	ret = vfs_write(file, (__force const char __user *)buf, count, pos);
+	set_fs(old_fs);
+
+	return ret;
+}
+
 static inline loff_t file_pos_read(struct file *file)
 {
 	return file->f_mode & FMODE_STREAM ? 0 : file->f_pos;
